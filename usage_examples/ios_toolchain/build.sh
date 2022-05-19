@@ -1,4 +1,5 @@
 #!/usr/bin/env bash
+set -e
 
 export LC_ALL=C
 pushd "${0%/*}" &>/dev/null
@@ -87,7 +88,14 @@ if [ $# -lt 2 ]; then
     exit 1
 fi
 
-TRIPLE="arm-apple-darwin11"
+TARGET_CPU=$2
+
+if [ $TARGET_CPU == "x86_64" ]; then
+  TRIPLE="x86_64-apple-darwin11"
+else
+  TRIPLE="arm-apple-darwin11"
+fi
+
 TARGETDIR="$PWD/target"
 SDKDIR="$TARGETDIR/SDK"
 
@@ -119,7 +127,11 @@ if [ -z "$SYSLIB" ]; then
     echo "SDK should contain libSystem{.dylib,.tbd}" 1>&2
     exit 1
 fi
-WRAPPER_SDKDIR=$(echo iPhoneOS*sdk | head -n1)
+if [ $TARGET_CPU == "x86_64" ]; then
+  WRAPPER_SDKDIR=$(echo iPhoneSimulator*sdk | head -n1)
+else
+  WRAPPER_SDKDIR=$(echo iPhoneOS*sdk | head -n1)
+fi
 if [ -z "$WRAPPER_SDKDIR" ]; then
     echo "broken SDK" 1>&2
     exit 1
@@ -152,10 +164,10 @@ elif ! which dsymutil &>/dev/null; then
 fi
 
 verbose_cmd cc -O2 -Wall -Wextra -pedantic wrapper.c \
-    -DSDK_DIR=\"\\\"$WRAPPER_SDKDIR\\\"\" \
-    -DTARGET_CPU=\"\\\"$2\\\"\" \
-    -DOS_VER_MIN=\"\\\"$SDK_VERSION\\\"\" \
-    -o $TARGETDIR/bin/$TRIPLE-clang
+  -DSDK_DIR=\"\\\"$WRAPPER_SDKDIR\\\"\" \
+  -DTARGET_CPU=\"\\\"$TARGET_CPU\\\"\" \
+  -DOS_VER_MIN=\"\\\"$SDK_VERSION\\\"\" \
+  -o $TARGETDIR/bin/$TRIPLE-clang
 
 pushd $TARGETDIR/bin &>/dev/null
 verbose_cmd ln -sf $TRIPLE-clang $TRIPLE-clang++
@@ -209,7 +221,14 @@ echo ""
 
 export PATH=$TARGETDIR/bin:$PATH
 
-echo "int main(){return 0;}" | $TRIPLE-clang -xc -O2 -o test - 1>/dev/null || exit 1
+#if [ $TARGET_CPU == "x86_64" ]; then
+#  echo "int main(){return 0;}" | LDFLAGS=-L$sdkpath/usr/lib $TRIPLE-clang -xc -O2 -v -o test - 1>/dev/null || exit 1
+#else
+#  echo "int main(){return 0;}" | $TRIPLE-clang -xc -O2 -v -o test - 1>/dev/null || exit 1
+#fi
+
+echo "int main(){return 0;}" | $TRIPLE-clang -xc -O2 -v -o test - 1>/dev/null || exit 1
+
 rm test
 echo "OK"
 
